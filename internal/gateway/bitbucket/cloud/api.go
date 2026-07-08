@@ -1,4 +1,4 @@
-package bitbucket
+package cloud
 
 import (
 	"context"
@@ -73,6 +73,13 @@ type PullRequestList struct {
 	Next   string        `json:"next,omitempty"`
 }
 
+func (l *PullRequestList) nextURL() string {
+	if l == nil {
+		return ""
+	}
+	return l.Next
+}
+
 // PullRequestListOptions controls pull request listing and pagination.
 type PullRequestListOptions struct {
 	Query   string
@@ -100,6 +107,13 @@ type CommentList struct {
 	Next   string    `json:"next,omitempty"`
 }
 
+func (l *CommentList) nextURL() string {
+	if l == nil {
+		return ""
+	}
+	return l.Next
+}
+
 // CommentListOptions controls comment listing and pagination.
 type CommentListOptions struct {
 	PageLen int
@@ -116,6 +130,13 @@ type WorkspaceMember struct {
 type WorkspaceMemberList struct {
 	Values []WorkspaceMember `json:"values"`
 	Next   string            `json:"next,omitempty"`
+}
+
+func (l *WorkspaceMemberList) nextURL() string {
+	if l == nil {
+		return ""
+	}
+	return l.Next
 }
 
 // WorkspaceMemberListOptions controls workspace member pagination.
@@ -430,6 +451,13 @@ type CommitStatusList struct {
 	Next   string         `json:"next,omitempty"`
 }
 
+func (l *CommitStatusList) nextURL() string {
+	if l == nil {
+		return ""
+	}
+	return l.Next
+}
+
 // CommitStatusListOptions controls commit status pagination.
 type CommitStatusListOptions struct {
 	PageURL string
@@ -488,6 +516,65 @@ func (c *Client) CommitStatusCreate(
 		return nil, resp, err
 	}
 	return &response, resp, nil
+}
+
+// Repository is a Bitbucket repository descriptor.
+// Only the fields git-spice consumes are decoded.
+type Repository struct {
+	// MainBranch is the repository's default branch.
+	// Its name is empty for an empty repository.
+	MainBranch Branch `json:"mainbranch"`
+}
+
+// RepositoryGet fetches a repository by workspace and name.
+// A missing repository maps to [ErrNotFound].
+func (c *Client) RepositoryGet(
+	ctx context.Context,
+	workspace string,
+	repo string,
+) (*Repository, *Response, error) {
+	var response Repository
+	resp, err := c.get(
+		ctx,
+		fmt.Sprintf("/repositories/%s/%s", workspace, repo),
+		nil,
+		&response,
+	)
+	if err != nil {
+		return nil, resp, err
+	}
+	return &response, resp, nil
+}
+
+// SourceFileGet fetches the raw contents of the file at the given path
+// as of the given commit hash or branch name.
+// A missing file maps to [ErrNotFound].
+func (c *Client) SourceFileGet(
+	ctx context.Context,
+	workspace string,
+	repo string,
+	commitOrBranch string,
+	path string,
+) ([]byte, *Response, error) {
+	return c.getRaw(
+		ctx,
+		fmt.Sprintf(
+			"/repositories/%s/%s/src/%s/%s",
+			workspace, repo,
+			url.PathEscape(commitOrBranch),
+			escapePath(path),
+		),
+	)
+}
+
+// escapePath escapes each segment of a slash-separated path,
+// preserving the separators.
+func escapePath(path string) string {
+	segments := strings.Split(path, "/")
+	for i, segment := range segments {
+		segments[i] = url.PathEscape(segment)
+	}
+	return strings.Join(segments, "/")
 }
 
 func buildPullRequestListRequest(

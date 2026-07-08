@@ -123,8 +123,9 @@ and leave them as-is.
 ## Will git-spice add support for other Git hosting services?
 
 As of writing this, git-spice supports
-GitHub, GitLab, Bitbucket Cloud, Gitea, and Forgejo,
-including Codeberg.
+GitHub, GitLab, Bitbucket Cloud,
+self-hosted Bitbucket Data Center / Server, Gitea,
+and Forgejo, including Codeberg.
 It is specifically designed to support other forges;
 most of the code is forge-agnostic,
 with forge-specific code is isolated to their own directories inside
