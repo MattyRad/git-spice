@@ -11,37 +11,29 @@ git-spice is a free and open-source project maintained by volunteers.
 
 <div class="grid cards" markdown>
 
--   :octicons-comment-discussion-16:{ .lg .middle } __GitHub Discussions__
+-   [:octicons-comment-discussion-16:{ .lg .middle } __GitHub Discussions__](https://github.com/abhinav/git-spice/discussions)
 
     ---
 
     Ask questions, share ideas, and discuss git-spice workflows.
 
-    [Open GitHub Discussions](https://github.com/abhinav/git-spice/discussions)
-
--   :simple-zulip:{ .lg .middle } __Zulip chat__
+-   [:simple-zulip:{ .lg .middle } __Zulip chat__](https://git-spice.zulipchat.com/)
 
     ---
 
-    Join the git-spice chat.
+    Join the git-spice chat for real-time discussions.
 
-    [Join Zulip chat](https://git-spice.zulipchat.com/)
-
--   :octicons-issue-opened-16:{ .lg .middle } __GitHub Issues__
+-   [:octicons-issue-opened-16:{ .lg .middle } __GitHub Issues__](https://github.com/abhinav/git-spice/issues)
 
     ---
 
-    Report bugs and track concrete work.
+    Report bugs, request features, and track concrete work.
 
-    [Open GitHub Issues](https://github.com/abhinav/git-spice/issues)
-
--   :octicons-git-pull-request-16:{ .lg .middle } __Contributing__
+-   [:octicons-git-pull-request-16:{ .lg .middle } __Contributing__](https://github.com/abhinav/git-spice/blob/main/CONTRIBUTING.md)
 
     ---
 
     Learn how to contribute changes to git-spice.
-
-    [Read the contributing guide](https://github.com/abhinav/git-spice/blob/main/CONTRIBUTING.md)
 
 </div>
 
