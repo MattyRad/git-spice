@@ -106,6 +106,19 @@ func (s *Service) CheckRestacked(ctx context.Context, name string) (baseHash git
 	}
 
 	if !replayRange.isRestacked() {
+		// If the base branch has merged this branch without updating git-spice
+		// state, the current merge base is the branch head:
+		//
+		//	A---B---M base
+		//	 \     /
+		//	  P---Q branch
+		//
+		// Moving the recorded boundary to Q would make log commands report no
+		// commits for branch, even though branch still needs restack because M is
+		// the base head. Keep the earlier recorded boundary in that case.
+		if replayRange.Upstream != b.Head {
+			s.reconcileRecordedBaseHash(ctx, name, b, replayRange.Upstream)
+		}
 		return git.ZeroHash, &BranchNeedsRestackError{
 			Base:     b.Base,
 			BaseHash: replayRange.BaseHead,
