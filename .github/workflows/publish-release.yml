@@ -65,6 +65,9 @@ jobs:
     name: Publish Release
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      contents: write
+      id-token: write # for Cosigning
 
     steps:
     - uses: actions/checkout@v6
