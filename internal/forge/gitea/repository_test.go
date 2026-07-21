@@ -19,8 +19,21 @@ func TestRepository_ChangeURL(t *testing.T) {
 	)
 }
 
+func TestRepository_ComparisonURL(t *testing.T) {
+	r := &Repository{
+		owner: "scotty",
+		repo:  "warp-core",
+		forge: &Forge{Options: Options{URL: "https://gitea.example.com"}},
+	}
+	assert.Equal(t,
+		"https://gitea.example.com/scotty/warp-core/compare/main...feat",
+		r.ComparisonURL("main", "feat"),
+	)
+}
+
 // Verify interface implementations at compile time.
 var (
-	_ forge.Repository    = (*Repository)(nil)
-	_ forge.WithChangeURL = (*Repository)(nil)
+	_ forge.Repository        = (*Repository)(nil)
+	_ forge.WithChangeURL     = (*Repository)(nil)
+	_ forge.WithComparisonURL = (*Repository)(nil)
 )

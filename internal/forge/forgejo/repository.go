@@ -22,7 +22,17 @@ type Repository struct {
 	canPush bool
 }
 
-var _ forge.Repository = (*Repository)(nil)
+var (
+	_ forge.Repository        = (*Repository)(nil)
+	_ forge.WithComparisonURL = (*Repository)(nil)
+)
+
+// ComparisonURL returns a URL comparing the changes head introduces
+// relative to base on Forgejo.
+func (r *Repository) ComparisonURL(base, head string) string {
+	return fmt.Sprintf("%s/%s/%s/compare/%s...%s",
+		r.forge.URL(), r.owner, r.repo, base, head)
+}
 
 // NewRepository builds a Forgejo repository wrapper.
 func NewRepository(

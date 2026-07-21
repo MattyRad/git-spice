@@ -951,6 +951,43 @@ are included in navigation comments posted to CRs.
 - `all` (default): include all downstack CRs (both open and merged)
 - `open`: only include CRs open at the time of submission
 
+### spice.submit.navigationComment.trunkComparisonLink
+
+<!-- gs:version unreleased -->
+
+Whether navigation comments should include a link
+comparing the CR's branch against the trunk branch.
+
+This is useful for reviewing the whole changeset going into trunk
+in a single diff (for example, with GitLab's "compare revisions"),
+especially for reviewers who aren't using stacked CRs themselves.
+Viewed on the topmost CR of a stack,
+the link shows the diff of the entire stack against trunk.
+
+The link is only added
+if the forge can construct comparison URLs
+(GitHub, GitLab, Gitea, and Forgejo).
+
+**Accepted values:**
+
+- `true`: include the trunk comparison link
+- `false` (default): don't include the link
+
+### spice.submit.navigationComment.trunkComparisonLinkText
+
+<!-- gs:version unreleased -->
+
+Text to use for the trunk comparison link
+enabled by [`spice.submit.navigationComment.trunkComparisonLink`](#spicesubmitnavigationcommenttrunkcomparisonlink).
+
+Defaults to "Compare against trunk".
+
+**Example:**
+
+```bash
+git config spice.submit.navigationComment.trunkComparisonLinkText "View all changes"
+```
+
 ### spice.submit.publish
 
 <!-- gs:version v0.5.0 -->

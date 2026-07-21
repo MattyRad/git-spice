@@ -63,3 +63,12 @@ func newRepository(
 
 // Forge returns the forge this repository belongs to.
 func (r *Repository) Forge() forge.Forge { return r.forge }
+
+var _ forge.WithComparisonURL = (*Repository)(nil)
+
+// ComparisonURL returns a URL comparing the changes head introduces
+// relative to base on GitHub.
+func (r *Repository) ComparisonURL(base, head string) string {
+	return fmt.Sprintf("%s/%s/%s/compare/%s...%s",
+		r.forge.URL(), r.owner, r.repo, base, head)
+}

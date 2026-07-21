@@ -1,0 +1,3 @@
+kind: Added
+body: 'submit: Navigation comments can optionally include a link comparing the branch against trunk, letting reviewers view the whole stack''s changeset against trunk in one diff. Enable it with the `spice.submit.navigationComment.trunkComparisonLink` configuration option.'
+time: 2026-07-21T16:53:28.53826231Z

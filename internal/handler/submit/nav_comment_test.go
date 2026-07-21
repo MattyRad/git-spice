@@ -450,6 +450,8 @@ func TestUpdateNavigationComments(t *testing.T) {
 				tt.sync,
 				tt.downstack,
 				"",
+				false, // trunk comparison link
+				"",    // trunk comparison link text
 				tt.submit,
 				func(context.Context) (forge.Repository, error) {
 					return mockRemoteRepo, nil
@@ -562,6 +564,8 @@ func TestUpdateNavigationComments_deletedExternally(t *testing.T) {
 			NavCommentSyncBranch,
 			NavCommentDownstackAll,
 			"",
+			false, // trunk comparison link
+			"",    // trunk comparison link text
 			[]string{"feat1"},
 			func(context.Context) (forge.Repository, error) {
 				return mockRemoteRepo, nil
@@ -677,6 +681,8 @@ func TestUpdateNavigationComments_deletedExternally(t *testing.T) {
 			NavCommentSyncDownstack,
 			NavCommentDownstackAll,
 			"",
+			false, // trunk comparison link
+			"",    // trunk comparison link text
 			[]string{"feat3"},
 			func(context.Context) (forge.Repository, error) {
 				return mockRemoteRepo, nil
@@ -684,6 +690,130 @@ func TestUpdateNavigationComments_deletedExternally(t *testing.T) {
 		)
 		require.NoError(t, err)
 	})
+}
+
+func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
+	// Two-branch stack: feat1 (on main) <- feat2 (on feat1),
+	// with feat2 pushed under a different upstream name.
+	//
+	// The change metadata is rebuilt for each fixture because posting a
+	// comment mutates it with the new comment ID.
+	newBranches := func() []spice.LoadBranchItem {
+		return []spice.LoadBranchItem{
+			{
+				Name:           "feat1",
+				Base:           "main",
+				Head:           "abcd1234",
+				BaseHash:       "efgh5678",
+				UpstreamBranch: "feat1",
+				Change:         &shamhub.ChangeMetadata{Number: 123},
+			},
+			{
+				Name:           "feat2",
+				Base:           "feat1",
+				Head:           "ijkl9012",
+				BaseHash:       "abcd1234",
+				UpstreamBranch: "remote-feat2",
+				Change:         &shamhub.ChangeMetadata{Number: 124},
+			},
+		}
+	}
+
+	// newFixture builds the mocks shared by the sub-tests.
+	// getRepo turns the base mock into the repository handed to
+	// updateNavigationComments, so a test can decide whether the
+	// repository supports comparison URLs.
+	newFixture := func(t *testing.T, getRepo func(*forgetest.MockRepository) forge.Repository) map[int]string {
+		log := silogtest.New(t)
+		ctrl := gomock.NewController(t)
+		store := statetest.NewMemoryStore(t, "main", "origin", log)
+
+		mockService := NewMockService(ctrl)
+		mockService.EXPECT().
+			LoadBranches(gomock.Any()).
+			Return(newBranches(), nil).
+			AnyTimes()
+
+		mockForge := forgetest.NewMockForge(ctrl)
+		mockForge.EXPECT().ID().Return("shamhub").AnyTimes()
+		mockForge.EXPECT().
+			MarshalChangeMetadata(gomock.Any()).
+			DoAndReturn(func(m forge.ChangeMetadata) (json.RawMessage, error) {
+				return json.Marshal(m)
+			}).
+			AnyTimes()
+
+		mockRepo := forgetest.NewMockRepository(ctrl)
+		mockRepo.EXPECT().Forge().Return(mockForge).AnyTimes()
+
+		var mu sync.Mutex
+		bodies := make(map[int]string) // change number -> comment body
+		mockRepo.EXPECT().
+			PostChangeComment(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, cid forge.ChangeID, body string) (forge.ChangeCommentID, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				bodies[int(cid.(shamhub.ChangeID))] = body
+				return shamhub.ChangeCommentID(len(bodies)), nil
+			}).
+			AnyTimes()
+
+		err := updateNavigationComments(
+			t.Context(),
+			store,
+			mockService,
+			log,
+			NavCommentAlways,
+			NavCommentSyncDownstack,
+			NavCommentDownstackAll,
+			"",
+			true, // trunk comparison link enabled
+			"",   // default text
+			[]string{"feat2"},
+			func(context.Context) (forge.Repository, error) {
+				return getRepo(mockRepo), nil
+			},
+		)
+		require.NoError(t, err)
+		return bodies
+	}
+
+	t.Run("Supported", func(t *testing.T) {
+		bodies := newFixture(t, func(m *forgetest.MockRepository) forge.Repository {
+			return comparingRepo{MockRepository: m}
+		})
+
+		// feat1 compares its own name against trunk.
+		assert.Contains(t, bodies[123],
+			"[Compare against trunk](https://example.com/compare/main...feat1)")
+		// feat2 uses its upstream branch name, not the local name.
+		assert.Contains(t, bodies[124],
+			"[Compare against trunk](https://example.com/compare/main...remote-feat2)")
+	})
+
+	t.Run("Unsupported", func(t *testing.T) {
+		// A forge that doesn't implement WithComparisonURL
+		// never gets a comparison link, even when enabled.
+		bodies := newFixture(t, func(m *forgetest.MockRepository) forge.Repository {
+			return m
+		})
+
+		for _, body := range bodies {
+			assert.NotContains(t, body, "Compare against trunk")
+		}
+	})
+}
+
+// comparingRepo wraps a mock repository to also satisfy
+// [forge.WithComparisonURL].
+type comparingRepo struct {
+	*forgetest.MockRepository
+}
+
+var _ forge.WithComparisonURL = comparingRepo{}
+
+func (comparingRepo) ComparisonURL(base, head string) string {
+	return "https://example.com/compare/" + base + "..." + head
 }
 
 func TestGenerateStackNavigationComment(t *testing.T) {
@@ -784,7 +914,7 @@ func TestGenerateStackNavigationComment(t *testing.T) {
 				tt.want + "\n" +
 				_commentFooter + "\n" +
 				_commentMarker + "\n"
-			got := generateStackNavigationComment(tt.graph, tt.current, "", nil)
+			got := generateStackNavigationComment(tt.graph, tt.current, "", nil, "")
 			assert.Equal(t, want, got)
 
 			// Sanity check: All generated comments must match
@@ -804,7 +934,7 @@ func TestGenerateStackNavigationComment(t *testing.T) {
 		}
 		graph[0].Aboves = []int{1}
 
-		got := generateStackNavigationComment(graph, 1, "<-- you are here", nil)
+		got := generateStackNavigationComment(graph, 1, "<-- you are here", nil, "")
 		want := _commentHeader + "\n\n" +
 			joinLines(
 				"- #123",
@@ -827,7 +957,7 @@ func TestGenerateStackNavigationComment(t *testing.T) {
 		}
 		graph[0].Aboves = []int{1}
 
-		got := generateStackNavigationComment(graph, 1, "", nil)
+		got := generateStackNavigationComment(graph, 1, "", nil, "")
 		want := _commentHeader + "\n\n" +
 			joinLines(
 				"- #123+",
@@ -836,6 +966,33 @@ func TestGenerateStackNavigationComment(t *testing.T) {
 			_commentFooter + "\n" +
 			_commentMarker + "\n"
 		assert.Equal(t, want, got)
+	})
+
+	t.Run("TrunkComparisonLink", func(t *testing.T) {
+		// The comparison link renders in its own paragraph
+		// between the stack listing and the footer.
+		graph := []*stackedChange{
+			{Change: _changeID("123"), Base: -1},
+			{Change: _changeID("124"), Base: 0},
+		}
+		graph[0].Aboves = []int{1}
+
+		trunkLink := "[Compare against trunk](https://example.com/o/r/compare/main...feat2)"
+		got := generateStackNavigationComment(graph, 1, "", nil, trunkLink)
+		want := _commentHeader + "\n\n" +
+			joinLines(
+				"- #123",
+				"    - #124 ◀",
+			) + "\n" +
+			trunkLink + "\n\n" +
+			_commentFooter + "\n" +
+			_commentMarker + "\n"
+		assert.Equal(t, want, got)
+
+		// The navigation regexes must still match with the link present.
+		for _, re := range _navCommentRegexes {
+			assert.True(t, re.MatchString(got), "regexp %q failed", re)
+		}
 	})
 }
 

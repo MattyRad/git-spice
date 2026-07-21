@@ -1,0 +1,63 @@
+# Test submit.navigationComment.trunkComparisonLink behavior.
+# When enabled, navigation comments include a link comparing the branch
+# against trunk, using the branch's upstream name.
+
+as 'Test <test@example.com>'
+at '2025-01-18T21:28:29Z'
+
+# setup
+cd repo
+git init
+git commit --allow-empty -m 'Initial commit'
+
+# set up a fake GitHub remote
+shamhub-setup
+shamhub register alice
+shamhub new origin alice/example.git
+git push origin main
+env SHAMHUB_USERNAME=alice
+gs auth login
+
+# opt in to the trunk comparison link
+git config --local spice.submit.navigationComment.trunkComparisonLink true
+
+# Create and submit a stack (main -> feature1 -> feature2).
+git add feature1.txt
+gs bc -m feature1
+git add feature2.txt
+gs bc -m feature2
+gs stack submit --fill
+
+# Each comment carries a link comparing its own branch against trunk.
+shamhub dump comments
+cmpenv stdout $WORK/golden/comments.txt
+
+-- repo/feature1.txt --
+feature 1
+
+-- repo/feature2.txt --
+feature 2
+
+-- golden/comments.txt --
+- change: 1
+  body: |
+    This change is part of the following stack:
+
+    - #1 ◀
+        - #2
+
+    [Compare against trunk]($SHAMHUB_URL/alice/example/compare/main...feature1)
+
+    <sub>Change managed by [git-spice](https://abhinav.github.io/git-spice/).</sub>
+    <!-- gs:navigation comment -->
+- change: 2
+  body: |
+    This change is part of the following stack:
+
+    - #1
+        - #2 ◀
+
+    [Compare against trunk]($SHAMHUB_URL/alice/example/compare/main...feature2)
+
+    <sub>Change managed by [git-spice](https://abhinav.github.io/git-spice/).</sub>
+    <!-- gs:navigation comment -->

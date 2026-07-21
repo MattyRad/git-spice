@@ -125,6 +125,16 @@ type forgeRepository struct {
 	client *jsonHTTPClient
 }
 
-var _ forge.Repository = (*forgeRepository)(nil)
+var (
+	_ forge.Repository        = (*forgeRepository)(nil)
+	_ forge.WithComparisonURL = (*forgeRepository)(nil)
+)
 
 func (r *forgeRepository) Forge() forge.Forge { return r.forge }
+
+// ComparisonURL returns a URL comparing the changes head introduces
+// relative to base.
+func (r *forgeRepository) ComparisonURL(base, head string) string {
+	return fmt.Sprintf("%s/%s/%s/compare/%s...%s",
+		r.forge.URL, r.owner, r.repo, base, head)
+}
