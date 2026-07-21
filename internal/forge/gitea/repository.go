@@ -26,14 +26,22 @@ type Repository struct {
 }
 
 var (
-	_ forge.Repository    = (*Repository)(nil)
-	_ forge.WithChangeURL = (*Repository)(nil)
+	_ forge.Repository        = (*Repository)(nil)
+	_ forge.WithChangeURL     = (*Repository)(nil)
+	_ forge.WithComparisonURL = (*Repository)(nil)
 )
 
 // ChangeURL returns the web URL for viewing the given pull request.
 func (r *Repository) ChangeURL(id forge.ChangeID) string {
 	return fmt.Sprintf("%s/%s/%s/pulls/%d",
 		r.forge.Options.URL, r.owner, r.repo, mustPR(id).Number)
+}
+
+// ComparisonURL returns a URL comparing the changes head introduces
+// relative to base on Gitea.
+func (r *Repository) ComparisonURL(base, head string) string {
+	return fmt.Sprintf("%s/%s/%s/compare/%s...%s",
+		r.forge.Options.URL, r.owner, r.repo, base, head)
 }
 
 func newRepository(

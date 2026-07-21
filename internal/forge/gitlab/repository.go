@@ -40,7 +40,15 @@ func (r *Repository) projectID(ctx context.Context, id forge.RepositoryID) (int6
 var (
 	_ forge.Repository              = (*Repository)(nil)
 	_ forge.WithNavigationReference = (*Repository)(nil)
+	_ forge.WithComparisonURL       = (*Repository)(nil)
 )
+
+// ComparisonURL returns a URL comparing the changes head introduces
+// relative to base on GitLab.
+func (r *Repository) ComparisonURL(base, head string) string {
+	return fmt.Sprintf("%s/%s/%s/-/compare/%s...%s",
+		r.forge.URL(), r.owner, r.repo, base, head)
+}
 
 // NavigationReference returns the GitLab reference to the given merge
 // request with the "+" expansion suffix.

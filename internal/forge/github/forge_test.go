@@ -199,3 +199,14 @@ func TestChangeURL(t *testing.T) {
 	got := repoID.ChangeURL(&PR{Number: 123})
 	assert.Equal(t, "https://github.com/example/repo/pull/123", got)
 }
+
+func TestRepository_ComparisonURL(t *testing.T) {
+	r := &Repository{
+		owner: "example",
+		repo:  "repo",
+		forge: &Forge{Options: Options{URL: DefaultURL}},
+	}
+
+	got := r.ComparisonURL("main", "feat")
+	assert.Equal(t, "https://github.com/example/repo/compare/main...feat", got)
+}

@@ -262,3 +262,22 @@ type WithNavigationReference interface {
 	// the given change ID in stack navigation content.
 	NavigationReference(id ChangeID) string
 }
+
+// WithComparisonURL is an optional interface that repositories can implement
+// to build a web URL comparing two refs.
+//
+// This powers the optional trunk-comparison link in stack navigation
+// comments, which lets reviewers view the whole stack's diff against trunk
+// at once.
+// Forges that cannot construct such URLs simply don't implement this
+// interface, in which case the link is omitted.
+type WithComparisonURL interface {
+	Repository
+
+	// ComparisonURL returns a web URL that shows the changes head
+	// introduces relative to base.
+	// Both base and head are branch names on the forge.
+	//
+	// It returns an empty string if a URL cannot be constructed.
+	ComparisonURL(base, head string) string
+}

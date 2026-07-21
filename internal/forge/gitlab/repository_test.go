@@ -21,3 +21,15 @@ func TestRepository_NavigationReference(t *testing.T) {
 	repo := &Repository{}
 	assert.Equal(t, "!42+", repo.NavigationReference(&MR{Number: 42}))
 }
+
+func TestRepository_ComparisonURL(t *testing.T) {
+	r := &Repository{
+		owner: "example",
+		repo:  "repo",
+		forge: &Forge{Options: Options{URL: "https://gitlab.example.com"}},
+	}
+	assert.Equal(t,
+		"https://gitlab.example.com/example/repo/-/compare/main...feat",
+		r.ComparisonURL("main", "feat"),
+	)
+}

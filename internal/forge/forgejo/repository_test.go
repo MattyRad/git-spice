@@ -290,6 +290,18 @@ func TestRepository_labelIDs_pagesUntilLabelsFound(t *testing.T) {
 	assert.Equal(t, []string{"1", "2"}, pages)
 }
 
+func TestRepository_ComparisonURL(t *testing.T) {
+	r := &Repository{
+		owner: "example",
+		repo:  "repo",
+		forge: &Forge{Options: Options{URL: "https://forgejo.example.com"}},
+	}
+	assert.Equal(t,
+		"https://forgejo.example.com/example/repo/compare/main...feat",
+		r.ComparisonURL("main", "feat"),
+	)
+}
+
 func newTestRepository(t *testing.T, srv *httptest.Server) *Repository {
 	client, err := forgejo.NewClient(
 		forgejo.StaticTokenSource(forgejo.Token{
