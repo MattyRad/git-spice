@@ -956,7 +956,8 @@ are included in navigation comments posted to CRs.
 <!-- gs:version unreleased -->
 
 Whether navigation comments should include a link
-comparing the CR's branch against the trunk branch.
+comparing a CR's branch against the trunk branch,
+and which CRs in a stack receive it.
 
 This is useful for reviewing the whole changeset going into trunk
 in a single diff (for example, with GitLab's "compare revisions"),
@@ -964,14 +965,17 @@ especially for reviewers who aren't using stacked CRs themselves.
 Viewed on the topmost CR of a stack,
 the link shows the diff of the entire stack against trunk.
 
-The link is only added
+A CR based directly on trunk is never eligible for the link,
+as its comparison would just repeat the CR itself.
+The link is also only added
 if the forge can construct comparison URLs
 (GitHub, GitLab, Gitea, and Forgejo).
 
 **Accepted values:**
 
-- `true`: include the trunk comparison link
 - `false` (default): don't include the link
+- `top`: add the link only to the topmost CR(s) of a stack
+- `all`: add the link to every eligible CR in the stack
 
 ### spice.submit.navigationComment.trunkComparisonLinkText
 
