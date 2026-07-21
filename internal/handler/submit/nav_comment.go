@@ -91,7 +91,7 @@ func updateNavigationComments(
 	navCommentSync NavCommentSync,
 	navCommentDownstack NavCommentDownstack,
 	navCommentMarker string,
-	navCommentTrunkLink bool,
+	navCommentTrunkLink NavCommentTrunkLink,
 	navCommentTrunkLinkText string,
 	submittedBranches []string,
 	getRemoteRepo func(context.Context) (forge.Repository, error),
@@ -129,7 +129,7 @@ func updateNavigationComments(
 	// each comment gets a link comparing the branch against trunk.
 	// Forges that don't implement WithComparisonURL simply omit the link.
 	var comparisonURL func(base, head string) string
-	if navCommentTrunkLink {
+	if navCommentTrunkLink != NavCommentTrunkLinkOff {
 		if r, ok := remoteRepo.(forge.WithComparisonURL); ok {
 			comparisonURL = r.ComparisonURL
 		}
@@ -416,17 +416,34 @@ func updateNavigationComments(
 		info := infos[idx]
 
 		// Link a comparison of this change's branch against trunk.
-		// Viewed on the topmost change of a stack,
-		// this shows the whole changeset going into trunk in one diff.
+		//
+		// The link is only meaningful for a change stacked on top of
+		// another open CR: only then does trunk...branch span more than
+		// the change's own diff. A change based directly on trunk (or on
+		// an already-merged CR) is skipped, as its comparison would just
+		// repeat the CR itself.
+		//
+		// In "top" scope (the default), only the topmost changes of the
+		// stack (those with nothing stacked above them) get the link,
+		// which on the tip shows the whole stack's diff against trunk.
+		// In "all" scope, every eligible change gets it.
+		//
+		// Open CRs occupy the first len(infos) nodes, so a base index in
+		// that range means this change is stacked on another open CR.
+		baseIdx := nodes[idx].Base
+		stackedOnOpenCR := baseIdx >= 0 && baseIdx < len(infos)
 		var trunkLink string
-		if comparisonURL != nil {
-			head := info.UpstreamBranch
-			if head == "" {
-				head = info.Branch
-			}
-			if head != "" && head != trunk {
-				if u := comparisonURL(trunk, head); u != "" {
-					trunkLink = fmt.Sprintf("[%s](%s)", trunkLinkText, u)
+		if comparisonURL != nil && stackedOnOpenCR {
+			isTop := len(nodes[idx].Aboves) == 0
+			if navCommentTrunkLink == NavCommentTrunkLinkAll || isTop {
+				head := info.UpstreamBranch
+				if head == "" {
+					head = info.Branch
+				}
+				if head != "" && head != trunk {
+					if u := comparisonURL(trunk, head); u != "" {
+						trunkLink = fmt.Sprintf("[%s](%s)", trunkLinkText, u)
+					}
 				}
 			}
 		}
