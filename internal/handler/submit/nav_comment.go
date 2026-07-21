@@ -1,6 +1,7 @@
 package submit
 
 import (
+	"cmp"
 	"context"
 	"encoding"
 	"errors"
@@ -402,6 +403,16 @@ func updateNavigationComments(
 		})
 	}
 
+	// Open CRs occupy the first len(infos) nodes, so a node whose base
+	// falls in that range is stacked on another open CR.
+	trunkLinks := trunkComparison{
+		mode:          navCommentTrunkLink,
+		comparisonURL: comparisonURL,
+		trunk:         trunk,
+		linkText:      trunkLinkText,
+		openCRCount:   len(infos),
+	}
+
 	// Concurrently post and update comments.
 	for _, idx := range branchesToSync {
 		// If we're only posting on multiple,
@@ -414,40 +425,8 @@ func updateNavigationComments(
 		}
 
 		info := infos[idx]
-
-		// Link a comparison of this change's branch against trunk.
-		//
-		// The link is only meaningful for a change stacked on top of
-		// another open CR: only then does trunk...branch span more than
-		// the change's own diff. A change based directly on trunk (or on
-		// an already-merged CR) is skipped, as its comparison would just
-		// repeat the CR itself.
-		//
-		// In "top" scope (the default), only the topmost changes of the
-		// stack (those with nothing stacked above them) get the link,
-		// which on the tip shows the whole stack's diff against trunk.
-		// In "all" scope, every eligible change gets it.
-		//
-		// Open CRs occupy the first len(infos) nodes, so a base index in
-		// that range means this change is stacked on another open CR.
-		baseIdx := nodes[idx].Base
-		stackedOnOpenCR := baseIdx >= 0 && baseIdx < len(infos)
-		var trunkLink string
-		if comparisonURL != nil && stackedOnOpenCR {
-			isTop := len(nodes[idx].Aboves) == 0
-			if navCommentTrunkLink == NavCommentTrunkLinkAll || isTop {
-				head := info.UpstreamBranch
-				if head == "" {
-					head = info.Branch
-				}
-				if head != "" && head != trunk {
-					if u := comparisonURL(trunk, head); u != "" {
-						trunkLink = fmt.Sprintf("[%s](%s)", trunkLinkText, u)
-					}
-				}
-			}
-		}
-
+		head := cmp.Or(info.UpstreamBranch, info.Branch)
+		trunkLink := trunkLinks.link(nodes[idx], head)
 		commentBody := generateStackNavigationComment(nodes, idx, navCommentMarker, remoteRepo.Forge(), trunkLink)
 		if info.Meta.NavigationCommentID() == nil {
 			postc <- &postComment{
@@ -503,6 +482,59 @@ func (s *stackedChange) Value() string {
 		return s.urlFormatter(s.Change)
 	}
 	return s.Change.String()
+}
+
+// trunkComparison builds "compare against trunk" links
+// for stack navigation comments.
+type trunkComparison struct {
+	mode NavCommentTrunkLink
+
+	// comparisonURL builds a URL comparing two refs,
+	// or nil if the link is disabled
+	// or the forge can't build comparison URLs.
+	comparisonURL func(base, head string) string
+
+	trunk    string
+	linkText string
+
+	// openCRCount is the number of nodes that are open CRs.
+	// A node whose base index is below this is stacked on another open CR.
+	openCRCount int
+}
+
+// link returns the Markdown link comparing head against trunk
+// for the change at node,
+// or an empty string if the change should not receive one.
+func (c trunkComparison) link(node *stackedChange, head string) string {
+	if c.comparisonURL == nil {
+		return ""
+	}
+
+	// The link is only meaningful for a change stacked on another open CR.
+	// Otherwise, trunk...head is just the change's own diff:
+	// a change based directly on trunk (or on an already-merged CR)
+	// would only repeat itself.
+	if node.Base < 0 || node.Base >= c.openCRCount {
+		return ""
+	}
+
+	// "top" links only the tips of the stack (nothing stacked above),
+	// where the comparison spans the whole stack; "all" links every
+	// eligible change.
+	isTip := len(node.Aboves) == 0
+	if c.mode != NavCommentTrunkLinkAll && !isTip {
+		return ""
+	}
+
+	if head == "" || head == c.trunk {
+		return ""
+	}
+
+	url := c.comparisonURL(c.trunk, head)
+	if url == "" {
+		return ""
+	}
+	return fmt.Sprintf("[%s](%s)", c.linkText, url)
 }
 
 const (
