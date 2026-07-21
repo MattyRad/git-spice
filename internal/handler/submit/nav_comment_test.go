@@ -450,8 +450,8 @@ func TestUpdateNavigationComments(t *testing.T) {
 				tt.sync,
 				tt.downstack,
 				"",
-				false, // trunk comparison link
-				"",    // trunk comparison link text
+				NavCommentTrunkLinkOff, // trunk comparison link
+				"",                     // trunk comparison link text
 				tt.submit,
 				func(context.Context) (forge.Repository, error) {
 					return mockRemoteRepo, nil
@@ -564,8 +564,8 @@ func TestUpdateNavigationComments_deletedExternally(t *testing.T) {
 			NavCommentSyncBranch,
 			NavCommentDownstackAll,
 			"",
-			false, // trunk comparison link
-			"",    // trunk comparison link text
+			NavCommentTrunkLinkOff, // trunk comparison link
+			"",                     // trunk comparison link text
 			[]string{"feat1"},
 			func(context.Context) (forge.Repository, error) {
 				return mockRemoteRepo, nil
@@ -681,8 +681,8 @@ func TestUpdateNavigationComments_deletedExternally(t *testing.T) {
 			NavCommentSyncDownstack,
 			NavCommentDownstackAll,
 			"",
-			false, // trunk comparison link
-			"",    // trunk comparison link text
+			NavCommentTrunkLinkOff, // trunk comparison link
+			"",                     // trunk comparison link text
 			[]string{"feat3"},
 			func(context.Context) (forge.Repository, error) {
 				return mockRemoteRepo, nil
@@ -695,6 +695,10 @@ func TestUpdateNavigationComments_deletedExternally(t *testing.T) {
 func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
 	// Two-branch stack: feat1 (on main) <- feat2 (on feat1),
 	// with feat2 pushed under a different upstream name.
+	//
+	// feat1 is based directly on trunk, so it is never eligible for a
+	// trunk comparison link. feat2 is stacked (eligible, but not a tip)
+	// and feat3 is the tip.
 	//
 	// The change metadata is rebuilt for each fixture because posting a
 	// comment mutates it with the new comment ID.
@@ -716,6 +720,14 @@ func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
 				UpstreamBranch: "remote-feat2",
 				Change:         &shamhub.ChangeMetadata{Number: 124},
 			},
+			{
+				Name:           "feat3",
+				Base:           "feat2",
+				Head:           "mnop3456",
+				BaseHash:       "ijkl9012",
+				UpstreamBranch: "feat3",
+				Change:         &shamhub.ChangeMetadata{Number: 125},
+			},
 		}
 	}
 
@@ -723,7 +735,7 @@ func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
 	// getRepo turns the base mock into the repository handed to
 	// updateNavigationComments, so a test can decide whether the
 	// repository supports comparison URLs.
-	newFixture := func(t *testing.T, getRepo func(*forgetest.MockRepository) forge.Repository) map[int]string {
+	newFixture := func(t *testing.T, mode NavCommentTrunkLink, getRepo func(*forgetest.MockRepository) forge.Repository) map[int]string {
 		log := silogtest.New(t)
 		ctrl := gomock.NewController(t)
 		store := statetest.NewMemoryStore(t, "main", "origin", log)
@@ -767,9 +779,9 @@ func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
 			NavCommentSyncDownstack,
 			NavCommentDownstackAll,
 			"",
-			true, // trunk comparison link enabled
+			mode, // trunk comparison link mode
 			"",   // default text
-			[]string{"feat2"},
+			[]string{"feat3"},
 			func(context.Context) (forge.Repository, error) {
 				return getRepo(mockRepo), nil
 			},
@@ -778,23 +790,38 @@ func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
 		return bodies
 	}
 
-	t.Run("Supported", func(t *testing.T) {
-		bodies := newFixture(t, func(m *forgetest.MockRepository) forge.Repository {
-			return comparingRepo{MockRepository: m}
-		})
+	comparing := func(m *forgetest.MockRepository) forge.Repository {
+		return comparingRepo{MockRepository: m}
+	}
 
-		// feat1 compares its own name against trunk.
-		assert.Contains(t, bodies[123],
-			"[Compare against trunk](https://example.com/compare/main...feat1)")
-		// feat2 uses its upstream branch name, not the local name.
+	t.Run("Top", func(t *testing.T) {
+		bodies := newFixture(t, NavCommentTrunkLinkTop, comparing)
+
+		// feat1 is based on trunk: never eligible.
+		assert.NotContains(t, bodies[123], "Compare against trunk")
+		// feat2 is stacked but not the tip: skipped in "top" scope.
+		assert.NotContains(t, bodies[124], "Compare against trunk")
+		// feat3 is the tip: it links, showing the whole stack vs trunk.
+		assert.Contains(t, bodies[125],
+			"[Compare against trunk](https://example.com/compare/main...feat3)")
+	})
+
+	t.Run("All", func(t *testing.T) {
+		bodies := newFixture(t, NavCommentTrunkLinkAll, comparing)
+
+		// feat1 is based on trunk: still never eligible.
+		assert.NotContains(t, bodies[123], "Compare against trunk")
+		// feat2 links using its upstream branch name, not the local name.
 		assert.Contains(t, bodies[124],
 			"[Compare against trunk](https://example.com/compare/main...remote-feat2)")
+		assert.Contains(t, bodies[125],
+			"[Compare against trunk](https://example.com/compare/main...feat3)")
 	})
 
 	t.Run("Unsupported", func(t *testing.T) {
 		// A forge that doesn't implement WithComparisonURL
 		// never gets a comparison link, even when enabled.
-		bodies := newFixture(t, func(m *forgetest.MockRepository) forge.Repository {
+		bodies := newFixture(t, NavCommentTrunkLinkAll, func(m *forgetest.MockRepository) forge.Repository {
 			return m
 		})
 
@@ -1116,6 +1143,36 @@ func TestNavCommentDownstack_UnmarshalText(t *testing.T) {
 		var d NavCommentDownstack
 		require.Error(t, d.UnmarshalText([]byte("unknown")))
 		assert.Equal(t, "unknown", NavCommentDownstack(42).String())
+	})
+}
+
+func TestNavCommentTrunkLink_UnmarshalText(t *testing.T) {
+	tests := []struct {
+		give string
+		want NavCommentTrunkLink
+		str  string // expected String() output ("" = same as give)
+	}{
+		{give: "false", want: NavCommentTrunkLinkOff, str: "false"},
+		{give: "0", want: NavCommentTrunkLinkOff, str: "false"},
+		{give: "no", want: NavCommentTrunkLinkOff, str: "false"},
+		{give: "top", want: NavCommentTrunkLinkTop, str: "top"},
+		{give: "true", want: NavCommentTrunkLinkTop, str: "top"}, // alias
+		{give: "all", want: NavCommentTrunkLinkAll, str: "all"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.give, func(t *testing.T) {
+			var got NavCommentTrunkLink
+			require.NoError(t, got.UnmarshalText([]byte(tt.give)))
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.str, got.String())
+		})
+	}
+
+	t.Run("unknown", func(t *testing.T) {
+		var l NavCommentTrunkLink
+		require.Error(t, l.UnmarshalText([]byte("unknown")))
+		assert.Equal(t, "unknown", NavCommentTrunkLink(42).String())
 	})
 }
 
