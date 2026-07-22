@@ -951,7 +951,7 @@ are included in navigation comments posted to CRs.
 - `all` (default): include all downstack CRs (both open and merged)
 - `open`: only include CRs open at the time of submission
 
-### spice.submit.navigationComment.trunkComparisonLink
+### spice.submit.navigationComment.trunkComparison
 
 <!-- gs:version unreleased -->
 
@@ -975,19 +975,19 @@ if the forge can construct comparison URLs
 - `top`: add the link only to the topmost CR(s) of a stack
 - `all`: add the link to every eligible CR in the stack
 
-### spice.submit.navigationComment.trunkComparisonLinkText
+### spice.submit.navigationCommentStyle.trunkComparisonText
 
 <!-- gs:version unreleased -->
 
 Text to use for the trunk comparison link
-enabled by [`spice.submit.navigationComment.trunkComparisonLink`](#spicesubmitnavigationcommenttrunkcomparisonlink).
+enabled by [`spice.submit.navigationComment.trunkComparison`](#spicesubmitnavigationcommenttrunkcomparison).
 
 Defaults to "Compare against trunk".
 
 **Example:**
 
 ```bash
-git config spice.submit.navigationComment.trunkComparisonLinkText "View all changes"
+git config spice.submit.navigationCommentStyle.trunkComparisonText "View all changes"
 ```
 
 ### spice.submit.publish

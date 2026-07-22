@@ -269,6 +269,7 @@ func (h *Handler) SubmitBatch(ctx context.Context, req *BatchRequest) error {
 		opts.NavCommentTrunkLinkText,
 		branchesToComment,
 		h.upstreamRepository,
+		h.pushRepositoryID,
 	)
 }
 
@@ -335,6 +336,7 @@ func (h *Handler) Submit(ctx context.Context, req *Request) error {
 		opts.NavCommentTrunkLinkText,
 		[]string{req.Branch},
 		h.upstreamRepository,
+		h.pushRepositoryID,
 	)
 }
 

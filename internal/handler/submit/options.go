@@ -26,8 +26,8 @@ type Options struct {
 	NavCommentDownstack NavCommentDownstack `name:"nav-comment-downstack" config:"submit.navigationComment.downstack" enum:"all,open" default:"all" hidden:"" help:"Which downstack CRs to include in navigation comments. Must be one of: all, open."`
 	NavCommentMarker    string              `name:"nav-comment-marker" config:"submit.navigationCommentStyle.marker" hidden:"" help:"Marker to use for the current change in navigation comments. Defaults to '◀'."`
 
-	NavCommentTrunkLink     NavCommentTrunkLink `name:"nav-comment-trunk-link" config:"submit.navigationComment.trunkComparisonLink" enum:"false,top,all" default:"false" hidden:"" help:"Whether to include a link comparing the branch against trunk in navigation comments, and on which CRs. Must be one of: false, top, all."`
-	NavCommentTrunkLinkText string              `name:"nav-comment-trunk-link-text" config:"submit.navigationComment.trunkComparisonLinkText" hidden:"" help:"Text for the trunk comparison link in navigation comments. Defaults to 'Compare against trunk'."`
+	NavCommentTrunkLink     NavCommentTrunkLink `name:"nav-comment-trunk-link" config:"submit.navigationComment.trunkComparison" enum:"false,top,all" default:"false" hidden:"" help:"Whether to include a link comparing the branch against trunk in navigation comments, and on which CRs. Must be one of: false, top, all."`
+	NavCommentTrunkLinkText string              `name:"nav-comment-trunk-link-text" config:"submit.navigationCommentStyle.trunkComparisonText" hidden:"" help:"Text for the trunk comparison link in navigation comments. Defaults to 'Compare against trunk'."`
 
 	SkipRestackCheck SkipRestackCheck `config:"submit.skipRestackCheck" hidden:"" help:"When to skip the restack check. Must be one of: never, trunk, always." default:"never"`
 

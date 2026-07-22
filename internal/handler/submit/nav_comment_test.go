@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -456,6 +457,7 @@ func TestUpdateNavigationComments(t *testing.T) {
 				func(context.Context) (forge.Repository, error) {
 					return mockRemoteRepo, nil
 				},
+				nil, // push repository
 			)
 			require.NoError(t, err)
 
@@ -570,6 +572,7 @@ func TestUpdateNavigationComments_deletedExternally(t *testing.T) {
 			func(context.Context) (forge.Repository, error) {
 				return mockRemoteRepo, nil
 			},
+			nil, // push repository
 		)
 		require.NoError(t, err)
 	})
@@ -687,6 +690,7 @@ func TestUpdateNavigationComments_deletedExternally(t *testing.T) {
 			func(context.Context) (forge.Repository, error) {
 				return mockRemoteRepo, nil
 			},
+			nil, // push repository
 		)
 		require.NoError(t, err)
 	})
@@ -735,7 +739,12 @@ func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
 	// getRepo turns the base mock into the repository handed to
 	// updateNavigationComments, so a test can decide whether the
 	// repository supports comparison URLs.
-	newFixture := func(t *testing.T, mode NavCommentTrunkLink, getRepo func(*forgetest.MockRepository) forge.Repository) map[int]string {
+	newFixture := func(
+		t *testing.T,
+		mode NavCommentTrunkLink,
+		getRepo func(*forgetest.MockRepository) forge.Repository,
+		pushRepository forge.RepositoryID,
+	) map[int]string {
 		log := silogtest.New(t)
 		ctrl := gomock.NewController(t)
 		store := statetest.NewMemoryStore(t, "main", "origin", log)
@@ -770,6 +779,13 @@ func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
 			}).
 			AnyTimes()
 
+		var getPushRepositoryID func(context.Context) (forge.RepositoryID, error)
+		if pushRepository != nil {
+			getPushRepositoryID = func(context.Context) (forge.RepositoryID, error) {
+				return pushRepository, nil
+			}
+		}
+
 		err := updateNavigationComments(
 			t.Context(),
 			store,
@@ -785,6 +801,7 @@ func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
 			func(context.Context) (forge.Repository, error) {
 				return getRepo(mockRepo), nil
 			},
+			getPushRepositoryID,
 		)
 		require.NoError(t, err)
 		return bodies
@@ -795,7 +812,7 @@ func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
 	}
 
 	t.Run("Top", func(t *testing.T) {
-		bodies := newFixture(t, NavCommentTrunkLinkTop, comparing)
+		bodies := newFixture(t, NavCommentTrunkLinkTop, comparing, nil)
 
 		// feat1 is based on trunk: never eligible.
 		assert.NotContains(t, bodies[123], "Compare against trunk")
@@ -807,7 +824,7 @@ func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
 	})
 
 	t.Run("All", func(t *testing.T) {
-		bodies := newFixture(t, NavCommentTrunkLinkAll, comparing)
+		bodies := newFixture(t, NavCommentTrunkLinkAll, comparing, nil)
 
 		// feat1 is based on trunk: still never eligible.
 		assert.NotContains(t, bodies[123], "Compare against trunk")
@@ -823,11 +840,23 @@ func TestUpdateNavigationComments_trunkComparisonLink(t *testing.T) {
 		// never gets a comparison link, even when enabled.
 		bodies := newFixture(t, NavCommentTrunkLinkAll, func(m *forgetest.MockRepository) forge.Repository {
 			return m
-		})
+		}, nil)
 
 		for _, body := range bodies {
 			assert.NotContains(t, body, "Compare against trunk")
 		}
+	})
+
+	t.Run("Fork", func(t *testing.T) {
+		bodies := newFixture(
+			t,
+			NavCommentTrunkLinkTop,
+			comparing,
+			_repositoryID("fork/repo"),
+		)
+
+		assert.Contains(t, bodies[125],
+			"[Compare against trunk](https://example.com/compare/main...fork/repo:feat3)")
 	})
 }
 
@@ -839,8 +868,13 @@ type comparingRepo struct {
 
 var _ forge.WithComparisonURL = comparingRepo{}
 
-func (comparingRepo) ComparisonURL(base, head string) string {
-	return "https://example.com/compare/" + base + "..." + head
+func (comparingRepo) ComparisonURL(req forge.ComparisonRequest) string {
+	head := req.HeadURLEncoded()
+	if req.HeadRepository != nil {
+		head = req.HeadRepository.String() + ":" + head
+	}
+	return fmt.Sprintf("https://example.com/compare/%s...%s",
+		req.BaseURLEncoded(), head)
 }
 
 func TestGenerateStackNavigationComment(t *testing.T) {
@@ -1180,6 +1214,16 @@ type _changeID string
 
 func (s _changeID) String() string {
 	return "#" + string(s)
+}
+
+type _repositoryID string
+
+func (r _repositoryID) String() string {
+	return string(r)
+}
+
+func (_repositoryID) ChangeURL(forge.ChangeID) string {
+	return ""
 }
 
 func joinLines(lines ...string) string {

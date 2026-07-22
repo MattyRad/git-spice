@@ -96,6 +96,7 @@ func updateNavigationComments(
 	navCommentTrunkLinkText string,
 	submittedBranches []string,
 	getRemoteRepo func(context.Context) (forge.Repository, error),
+	getPushRepositoryID func(context.Context) (forge.RepositoryID, error),
 ) error {
 	if len(submittedBranches) == 0 {
 		return nil
@@ -129,10 +130,17 @@ func updateNavigationComments(
 	// If enabled, and the forge can build comparison URLs,
 	// each comment gets a link comparing the branch against trunk.
 	// Forges that don't implement WithComparisonURL simply omit the link.
-	var comparisonURL func(base, head string) string
+	var comparisonRepo forge.WithComparisonURL
 	if navCommentTrunkLink != NavCommentTrunkLinkOff {
 		if r, ok := remoteRepo.(forge.WithComparisonURL); ok {
-			comparisonURL = r.ComparisonURL
+			comparisonRepo = r
+		}
+	}
+	var headRepository forge.RepositoryID
+	if comparisonRepo != nil && getPushRepositoryID != nil {
+		headRepository, err = getPushRepositoryID(ctx)
+		if err != nil {
+			return fmt.Errorf("get push repository: %w", err)
 		}
 	}
 	trunkLinkText := navCommentTrunkLinkText
@@ -406,11 +414,12 @@ func updateNavigationComments(
 	// Open CRs occupy the first len(infos) nodes, so a node whose base
 	// falls in that range is stacked on another open CR.
 	trunkLinks := trunkComparison{
-		mode:          navCommentTrunkLink,
-		comparisonURL: comparisonURL,
-		trunk:         trunk,
-		linkText:      trunkLinkText,
-		openCRCount:   len(infos),
+		mode:           navCommentTrunkLink,
+		comparisonRepo: comparisonRepo,
+		trunk:          trunk,
+		linkText:       trunkLinkText,
+		openCRCount:    len(infos),
+		headRepository: headRepository,
 	}
 
 	// Concurrently post and update comments.
@@ -489,10 +498,10 @@ func (s *stackedChange) Value() string {
 type trunkComparison struct {
 	mode NavCommentTrunkLink
 
-	// comparisonURL builds a URL comparing two refs,
+	// comparisonRepo describes a URL comparing two refs,
 	// or nil if the link is disabled
 	// or the forge can't build comparison URLs.
-	comparisonURL func(base, head string) string
+	comparisonRepo forge.WithComparisonURL
 
 	trunk    string
 	linkText string
@@ -500,13 +509,17 @@ type trunkComparison struct {
 	// openCRCount is the number of nodes that are open CRs.
 	// A node whose base index is below this is stacked on another open CR.
 	openCRCount int
+
+	// headRepository identifies the push repository in fork mode.
+	// If nil, the comparison head belongs to the target repository.
+	headRepository forge.RepositoryID
 }
 
 // link returns the Markdown link comparing head against trunk
 // for the change at node,
 // or an empty string if the change should not receive one.
 func (c trunkComparison) link(node *stackedChange, head string) string {
-	if c.comparisonURL == nil {
+	if c.comparisonRepo == nil {
 		return ""
 	}
 
@@ -530,7 +543,11 @@ func (c trunkComparison) link(node *stackedChange, head string) string {
 		return ""
 	}
 
-	url := c.comparisonURL(c.trunk, head)
+	url := c.comparisonRepo.ComparisonURL(forge.ComparisonRequest{
+		Base:           c.trunk,
+		Head:           head,
+		HeadRepository: c.headRepository,
+	})
 	if url == "" {
 		return ""
 	}

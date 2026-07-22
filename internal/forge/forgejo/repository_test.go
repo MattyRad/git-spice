@@ -296,10 +296,28 @@ func TestRepository_ComparisonURL(t *testing.T) {
 		repo:  "repo",
 		forge: &Forge{Options: Options{URL: "https://forgejo.example.com"}},
 	}
-	assert.Equal(t,
-		"https://forgejo.example.com/example/repo/compare/main...feat",
-		r.ComparisonURL("main", "feat"),
-	)
+
+	t.Run("SameRepository", func(t *testing.T) {
+		assert.Equal(t,
+			"https://forgejo.example.com/example/repo/compare/main...feat",
+			r.ComparisonURL(forge.ComparisonRequest{Base: "main", Head: "feat"}),
+		)
+	})
+
+	t.Run("Fork", func(t *testing.T) {
+		assert.Equal(t,
+			"https://forgejo.example.com/example/repo/compare/main...fork/repo:feat%23review",
+			r.ComparisonURL(forge.ComparisonRequest{
+				Base: "main",
+				Head: "feat#review",
+				HeadRepository: &RepositoryID{
+					url:   "https://forgejo.example.com",
+					owner: "fork",
+					name:  "repo",
+				},
+			}),
+		)
+	})
 }
 
 func newTestRepository(t *testing.T, srv *httptest.Server) *Repository {

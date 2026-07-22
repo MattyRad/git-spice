@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.abhg.dev/gs/internal/forge"
 	"go.abhg.dev/gs/internal/git/giturl"
 )
 
@@ -207,6 +208,26 @@ func TestRepository_ComparisonURL(t *testing.T) {
 		forge: &Forge{Options: Options{URL: DefaultURL}},
 	}
 
-	got := r.ComparisonURL("main", "feat")
-	assert.Equal(t, "https://github.com/example/repo/compare/main...feat", got)
+	t.Run("SameRepository", func(t *testing.T) {
+		got := r.ComparisonURL(forge.ComparisonRequest{
+			Base: "main",
+			Head: "feat",
+		})
+		assert.Equal(t, "https://github.com/example/repo/compare/main...feat", got)
+	})
+
+	t.Run("Fork", func(t *testing.T) {
+		got := r.ComparisonURL(forge.ComparisonRequest{
+			Base: "main",
+			Head: "feat#review",
+			HeadRepository: &RepositoryID{
+				url:   DefaultURL,
+				owner: "fork",
+				name:  "repo",
+			},
+		})
+		assert.Equal(t,
+			"https://github.com/example/repo/compare/main...fork:feat%23review",
+			got)
+	})
 }

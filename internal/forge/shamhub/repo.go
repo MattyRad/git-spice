@@ -132,9 +132,15 @@ var (
 
 func (r *forgeRepository) Forge() forge.Forge { return r.forge }
 
-// ComparisonURL returns a URL comparing the changes head introduces
-// relative to base.
-func (r *forgeRepository) ComparisonURL(base, head string) string {
+// ComparisonURL returns a URL for a comparison.
+func (r *forgeRepository) ComparisonURL(req forge.ComparisonRequest) string {
+	head := req.HeadURLEncoded()
+	if req.HeadRepository != nil {
+		headRepo := req.HeadRepository.(*RepositoryID)
+		if headRepo.owner != r.owner || headRepo.repo != r.repo {
+			head = headRepo.String() + ":" + head
+		}
+	}
 	return fmt.Sprintf("%s/%s/%s/compare/%s...%s",
-		r.forge.URL, r.owner, r.repo, base, head)
+		r.forge.URL, r.owner, r.repo, req.BaseURLEncoded(), head)
 }

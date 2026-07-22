@@ -27,11 +27,21 @@ var (
 	_ forge.WithComparisonURL = (*Repository)(nil)
 )
 
-// ComparisonURL returns a URL comparing the changes head introduces
-// relative to base on Forgejo.
-func (r *Repository) ComparisonURL(base, head string) string {
+// ComparisonURL returns a URL for a comparison on Forgejo.
+// See Forgejo's [compare API documentation].
+//
+// [compare API documentation]: https://codeberg.org/api/swagger#/repository/repoCompareDiff
+func (r *Repository) ComparisonURL(req forge.ComparisonRequest) string {
+	head := req.HeadURLEncoded()
+	if req.HeadRepository != nil {
+		headRepo := mustRepositoryID(req.HeadRepository)
+		if headRepo.owner != r.owner || headRepo.name != r.repo {
+			// Forgejo qualifies a cross-fork head with its owner and repository.
+			head = headRepo.String() + ":" + head
+		}
+	}
 	return fmt.Sprintf("%s/%s/%s/compare/%s...%s",
-		r.forge.URL(), r.owner, r.repo, base, head)
+		r.forge.URL(), r.owner, r.repo, req.BaseURLEncoded(), head)
 }
 
 // NewRepository builds a Forgejo repository wrapper.

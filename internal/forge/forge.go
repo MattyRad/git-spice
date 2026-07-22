@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
+	"net/url"
 
 	"go.abhg.dev/gs/internal/git/giturl"
 	"go.abhg.dev/gs/internal/secret"
@@ -274,10 +275,33 @@ type WithNavigationReference interface {
 type WithComparisonURL interface {
 	Repository
 
-	// ComparisonURL returns a web URL that shows the changes head
-	// introduces relative to base.
-	// Both base and head are branch names on the forge.
-	//
+	// ComparisonURL returns a web URL for the requested comparison.
 	// It returns an empty string if a URL cannot be constructed.
-	ComparisonURL(base, head string) string
+	ComparisonURL(ComparisonRequest) string
+}
+
+// ComparisonRequest describes a comparison against a repository's branch.
+// Base and Head are plain-text branch names.
+// Forges must URL-encode them before interpolation into a URL.
+type ComparisonRequest struct {
+	// Base is the plain-text branch to compare against
+	// in the receiving repository.
+	Base string // required
+
+	// Head is the plain-text branch containing the changes.
+	Head string // required
+
+	// HeadRepository identifies the repository that owns Head.
+	// If nil, the receiving repository owns Head.
+	HeadRepository RepositoryID // optional
+}
+
+// BaseURLEncoded returns Base encoded for use as one URL path segment.
+func (r ComparisonRequest) BaseURLEncoded() string {
+	return url.PathEscape(r.Base)
+}
+
+// HeadURLEncoded returns Head encoded for use as one URL path segment.
+func (r ComparisonRequest) HeadURLEncoded() string {
+	return url.PathEscape(r.Head)
 }
